@@ -5,6 +5,17 @@ from django.utils.translation import gettext_lazy as _
 
 from core import models
 
+# admin.TabularInline
+class RecipeInline(admin.StackedInline):
+    '''Tabular Inline View for Recipe'''
+
+    model = models.Recipe
+    min_num = 1
+    max_num = 20
+    extra = 0
+    raw_id_fields = ("user",)
+    fields = ("title", "price", "time_minutes")
+
 
 class UserAdmin(BaseUserAdmin):
     ordering = ["id", "name"]
@@ -29,6 +40,9 @@ class UserAdmin(BaseUserAdmin):
             {"classes": ("wide",), "fields": ("is_active", "is_staff", "is_superuser")},
         ),
     )
+    
+    inlines = [RecipeInline]
 
 
 admin.site.register(models.User, UserAdmin)
+admin.site.register(models.Recipe)

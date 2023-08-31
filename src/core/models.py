@@ -9,6 +9,8 @@ from django.contrib.auth.models import (
 )
 
 from django.contrib.auth.models import User
+from django.conf import settings
+# from django.utils.translation import
 
 
 
@@ -46,3 +48,20 @@ class User(AbstractBaseUser, PermissionsMixin):
     objects = UserManager()
     
     USERNAME_FIELD = "email"
+
+
+class Recipe(models.Model):
+    """Recipe object"""
+    user = models.ForeignKey(
+        settings.AUTH_USER_MODEL, 
+        related_name='recipes', 
+        on_delete=models.CASCADE
+    )
+    title = models.CharField(max_length=255)
+    description = models.TextField(blank=True)
+    price = models.DecimalField(max_digits=5, decimal_places=2)
+    time_minutes = models.PositiveIntegerField()
+    link = models.CharField(max_length=255, blank=True)
+
+    def __str__(self):
+        return self.title

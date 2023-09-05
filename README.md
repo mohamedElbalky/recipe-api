@@ -1,3 +1,5 @@
 # recipe-api
 Recipe API APP
-## hello
+## Technologies Used:
+
+  

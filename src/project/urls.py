@@ -28,5 +28,8 @@ urlpatterns = [
     
     
     # user api app
-    path("api/user/", include("user.urls"))
+    path("api/user/", include("user.urls")),
+    
+    # recipe api app
+    path('api/recipe/', include('recipe.urls')),
 ]

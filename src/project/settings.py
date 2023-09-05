@@ -43,6 +43,7 @@ INSTALLED_APPS = [
     # my apps
     'core.apps.CoreConfig',
     'user.apps.UserConfig',
+    'recipe.apps.RecipeConfig',
 ]
 
 

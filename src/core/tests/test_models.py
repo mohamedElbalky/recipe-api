@@ -57,5 +57,12 @@ class TestCoreModel(TestCase):
             price=Decimal("5.5"),
             description="this is description",
         )
-
         self.assertEqual(str(recipe), recipe.title)
+        
+    def test_create_tag(self):
+        """test create a tag is successful"""
+        user = create_new_user(email="test@example.com", password="test123")
+        
+        tag = models.Tag.objects.create(user=user, name="Tag1")
+        
+        self.assertEqual(str(tag), tag.name)

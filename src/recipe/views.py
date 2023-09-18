@@ -1,7 +1,10 @@
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
-from rest_framework import viewsets
+from rest_framework import (
+    viewsets,
+    mixins
+)
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import (
@@ -13,7 +16,7 @@ from rest_framework import status
 from rest_framework.response import Response
 
 
-from core.models import Recipe
+from core.models import Recipe, Tag
 from . import serializers
 
 
@@ -41,6 +44,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         """Create new recipe"""
         serializer.save(user=self.request.user)
 
+
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
@@ -63,16 +67,72 @@ def recipe_view(request):
 
 
 
-@api_view(["GET"])
+@api_view(["GET", "PATCH", "PUT", "DELETE"])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
 def recipe_detail_view(request, recipe_id=None):
     """A view to detail recipe"""
+    data =request.data
     try:
-        recipe = get_object_or_404(Recipe, id=recipe_id)
-    except Http404:
-        return Response({"error": "recipe not found"}, status=status.HTTP_404_NOT_FOUND)
+        id = int(recipe_id)
     except ValueError:
-        return Response({"error": "recipe ID is invalid"}, status=status.HTTP_404_NOT_FOUND)
-    ser = serializers.RecipeDetailSerializer(recipe, context={"request": request})
-    return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    # recipe_length = Recipe.objects.count()
+    # if id > recipe_length:
+    #     return Response(status=status.HTTP_404_NOT_FOUND)
+    
+    recipe = get_object_or_404(Recipe, id=id)
+    
+    if request.method == "GET":
+        ser = serializers.RecipeDetailSerializer(recipe, context={"request": request})
+        return Response(ser.data, status=status.HTTP_200_OK)
+    
+    if request.method == "PATCH":
+        # Dont update all data [part of data]
+        ser = serializers.RecipeDetailSerializer(recipe, data=data, context={"request": request}, partial=True)
+        if ser.is_valid(raise_exception=True):
+            ser.save()
+            return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method == "PUT":
+        # update all data record
+        ser = serializers.RecipeDetailSerializer(recipe, data=data, context={"request": request})
+        if ser.is_valid(raise_exception=True):
+            ser.save()
+            return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+    
+    if request.method == "DELETE":
+        # update recipe
+        if recipe.user != request.user:
+            return Response(status=status.HTTP_404_NOT_FOUND)
+        recipe.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+    
+    
+class TagViewSet(mixins.ListModelMixin, viewsets.GenericViewSet):
+    """view for manage tag api"""
+    queryset = Tag.objects.all()
+    serializer_class = serializers.TagSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+    
+    def get_queryset(self):
+        qs = self.queryset.filter(user=self.request.user).order_by("-name")
+        return qs
+    
+@api_view(["GET", "POST"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def tag_view(request):
+    """vew for mange tag list api and create new tag api"""
+    if request.method == "GET":
+        user = request.user
+        tags = Tag.objects.filter(user=user).order_by("-name")
+        ser = serializers.TagSerializer(tags, many=True)
+        return Response(ser.data, status=status.HTTP_200_OK)
+    
+    if request.method == "POST":
+        pass

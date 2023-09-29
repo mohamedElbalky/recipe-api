@@ -24,4 +24,5 @@ urlpatterns = [
     path('fbv/recipes/<str:recipe_id>/', views.recipe_detail_view, name="recipe-detail"),
     
     path('fbv/tags/', views.tag_view, name='tag-list'),
+    path('fbv/tag/<int:tag_id>/', views.tag_detail_view, name="tag-detail")
 ]

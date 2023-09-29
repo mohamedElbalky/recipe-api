@@ -1,4 +1,5 @@
 -r requirements.txt
 flake8>=3.9.2,<3.10
 ipython==8.12.2
-django-extensions==3.2.3
+django-extensions==3.2.3  
+psycopg2-binary==2.9.7  # activate in development

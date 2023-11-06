@@ -38,7 +38,8 @@ INSTALLED_APPS = [
     # 3rd
     'rest_framework',
     'rest_framework.authtoken',
-    'drf_yasg',   # using drf_yasg to make documwntaion for api
+    # 'drf_yasg',   # using drf_yasg to make documwntaion for api
+    'drf_spectacular',
     
     # my apps
     'core.apps.CoreConfig',
@@ -146,15 +147,13 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 AUTH_USER_MODEL = "core.User"
 
 REST_FRAMEWORK = {
-    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema',
+    'DEFAULT_SCHEMA_CLASS': 'drf_spectacular.openapi.AutoSchema'
 }
 
 SPECTACULAR_SETTINGS = {
-    'TITLE': 'Recripe project API',
-    'DESCRIPTION': 'Recipe aPI',
+    'TITLE': 'Recipe API Documentation',
+    'DESCRIPTION': 'Documenting your APIs',
     'VERSION': '1.0.0',
+    'COMPONENT_SPLIT_REQUEST': True,
     'SERVE_INCLUDE_SCHEMA': False,
-    # OTHER SETTINGS
 }
-
-

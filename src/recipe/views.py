@@ -12,8 +12,10 @@ from rest_framework.decorators import (
 from rest_framework import status
 from rest_framework.response import Response
 
+from drf_spectacular.utils import extend_schema
 
-from core.models import Recipe, Tag
+
+from core.models import Recipe, Tag, Ingredient
 from . import serializers
 
 
@@ -43,6 +45,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         serializer.save(user=self.request.user)
 
 
+@extend_schema(request=serializers.RecipeDetailSerializer, responses=None)
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
@@ -70,6 +73,7 @@ def recipe_view(request):
     )
 
 
+@extend_schema(request=serializers.RecipeDetailSerializer, responses=None)
 @api_view(["GET", "PATCH", "PUT", "DELETE"])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
@@ -120,6 +124,7 @@ class TagViewSet(
     mixins.DestroyModelMixin,
     mixins.RetrieveModelMixin,
     mixins.ListModelMixin,
+    mixins.CreateModelMixin,
     viewsets.GenericViewSet,
 ):
     """view for manage tag api"""
@@ -133,7 +138,11 @@ class TagViewSet(
         qs = self.queryset.filter(user=self.request.user).order_by("-name")
         return qs
 
+    # def perform_create(self, serializer):
+    #     serializer.save(user=self.request.user)
 
+
+@extend_schema(request=serializers.TagSerializer, responses=None)
 @api_view(["GET", "POST"])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -148,11 +157,12 @@ def tag_view(request):
     if request.method == "POST":
         ser = serializers.TagSerializer(data=request.data, context={"request": request})
         if ser.is_valid(raise_exception=True):
-            ser.save()
+            ser.save(user=request.user)
             return Response(ser.data, status.HTTP_201_CREATED)
         return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
+@extend_schema(request=serializers.TagSerializer, responses=None)
 @api_view(["GET", "PATCH", "PUT", "DELETE"])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
@@ -176,4 +186,78 @@ def tag_detail_view(request, tag_id=None):
 
     if request.method == "DELETE":
         tag.delete()
+        return Response(status=status.HTTP_204_NO_CONTENT)
+
+    if request.method == "PUT":
+        ser = serializers.TagSerializer(
+            tag, data=request.data, context={"request": request}
+        )
+        if ser.is_valid(raise_exception=True):
+            ser.save()
+            return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(ser.errors, status.HTTP_400_BAD_REQUEST)
+
+
+class IngredientViewSet(viewsets.ModelViewSet):
+    """view for manage ingredient api"""
+
+    queryset = Ingredient.objects.all()
+    serializer_class = serializers.IngredientSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = self.queryset.filter(user=self.request.user).order_by("-name")
+        return qs
+
+    # def perform_create(self, serializer):
+    #     serializer.save(user=self.request.user)
+
+
+@extend_schema(request=serializers.IngredientSerializer, responses=None)
+@api_view(["GET", "POST"])
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+def ingredient_view(request):
+    """function view for manage ingredient api ==> [list and create]"""
+    if request.method == "GET":
+        qs = Ingredient.objects.filter(user=request.user).order_by("-name")
+        ser = serializers.IngredientSerializer(
+            qs, many=True, context={"request": request}
+        )
+        return Response(ser.data, status=status.HTTP_200_OK)
+
+    if request.method == "POST":
+        ser = serializers.IngredientSerializer(
+            data=request.data, context={"request": request}
+        )
+        if ser.is_valid():
+            ser.save(user=request.user)
+            return Response(ser.data, status=status.HTTP_201_CREATED)
+        return Response(ser.errors, status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(request=serializers.IngredientSerializer, responses=None)
+@permission_classes([IsAuthenticated])
+@authentication_classes([TokenAuthentication])
+@api_view(["GET", "PATCH", "PUT", "DELETE"])
+def ingredient_detail_view(request, ingredient_id=None):
+    """fbv for manage an ingredient ==> [retrive, update, delete]"""
+    ingredient = get_object_or_404(Ingredient,id=ingredient_id)
+
+    if request.method == "GET":
+        ser = serializers.IngredientSerializer(ingredient, context={"request": request})
+        return Response(ser.data, status=status.HTTP_200_OK)
+
+    if request.method == "PATCH":
+        ser = serializers.IngredientSerializer(
+            ingredient, data=request.data, context={"request": request}, partial=True
+        )
+        if ser.is_valid():
+            ser.save(user=request.user)
+            return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+
+    if request.method == "DELETE":
+        ingredient.delete()
         return Response(status=status.HTTP_204_NO_CONTENT)

@@ -58,7 +58,7 @@ class RecipeSerializer(serializers.ModelSerializer):
 
     def _get_or_create_ingredients(self, ingredients, recipe):
         """
-        handle getting or creating ingredients as needed, 
+        handle getting or creating ingredients as needed,
         when using ingredient from anther users
         """
         auth_user = self.context["request"].user
@@ -102,4 +102,18 @@ class RecipeDetailSerializer(RecipeSerializer):
     """serializer for recipe detail view."""
 
     class Meta(RecipeSerializer.Meta):
-        fields = RecipeSerializer.Meta.fields + ["description"]
+        fields = RecipeSerializer.Meta.fields + ["description", "image"]
+
+
+class RecipeImageSerializer(serializers.ModelSerializer):
+    """
+    serializer for uploading image to recipe,
+    we add separate image serializer becouse it is best
+    practice to only upload one type of data to an api
+    """
+
+    class Meta:
+        model = Recipe
+        fields = ("id", "image")
+        read_only_fields = ("id",)
+        extra_kwargs = {"image": {"required": "True"}}

@@ -1,19 +1,19 @@
 from django.http import Http404
 from django.shortcuts import get_object_or_404
 
-from rest_framework import viewsets, mixins
+from rest_framework import viewsets, mixins, status
 from rest_framework.authentication import TokenAuthentication
 from rest_framework.permissions import IsAuthenticated
 from rest_framework.decorators import (
     api_view,
     permission_classes,
     authentication_classes,
+    action,
 )
-from rest_framework import status
+
 from rest_framework.response import Response
 
 from drf_spectacular.utils import extend_schema
-
 
 from core.models import Recipe, Tag, Ingredient
 from . import serializers
@@ -38,11 +38,38 @@ class RecipeViewSet(viewsets.ModelViewSet):
         """
         if self.action == "list":
             return serializers.RecipeSerializer
+        elif self.action == "upload_image":
+            return serializers.RecipeImageSerializer
         return self.serializer_class
 
     def perform_create(self, serializer):
         """Create new recipe"""
         serializer.save(user=self.request.user)
+
+    @action(methods=["POST"], detail=True, url_path="upload-image")
+    def upload_image(self, request, pk=None):
+        """Upload an image to recipe."""
+        recipe = self.get_object()
+        serializer = self.get_serializer(recipe, data=request.data)
+        if serializer.is_valid():
+            serializer.save()
+            return Response(serializer.data, status=status.HTTP_200_OK)
+        return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+
+
+@extend_schema(request=serializers.RecipeImageSerializer, responses=None)
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@api_view(["POST"])
+def recipe_image_view(request, recipe_id):
+    """upload a recipe image view"""
+    recipe = get_object_or_404(Recipe, id=recipe_id)
+    if request.method == "POST":
+        ser = serializers.RecipeImageSerializer(recipe, request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(request=serializers.RecipeDetailSerializer, responses=None)
@@ -243,7 +270,7 @@ def ingredient_view(request):
 @api_view(["GET", "PATCH", "PUT", "DELETE"])
 def ingredient_detail_view(request, ingredient_id=None):
     """fbv for manage an ingredient ==> [retrive, update, delete]"""
-    ingredient = get_object_or_404(Ingredient,id=ingredient_id)
+    ingredient = get_object_or_404(Ingredient, id=ingredient_id)
 
     if request.method == "GET":
         ser = serializers.IngredientSerializer(ingredient, context={"request": request})

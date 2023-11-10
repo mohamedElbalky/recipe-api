@@ -1,3 +1,6 @@
+import uuid
+import os
+
 from django.db import models
 
 from django.core.validators import RegexValidator
@@ -11,10 +14,13 @@ from django.contrib.auth.models import (
 from django.contrib.auth.models import User
 from django.conf import settings
 
-# from django.utils.translation import
 
+def recipe_image_file_path(instance, filename):
+    """Generate file path for new recipe image."""
+    ext = os.path.splitext(filename)[1]
+    filename = f"{uuid.uuid4()}{ext}"
 
-# phone_validator = RegexValidator(r"^(\+?\d{0,4})?\s?-?\s?(\(?\d{3}\)?)\s?-?\s?(\(?\d{3}\)?)\s?-?\s?(\(?\d{4}\)?)?$", "The phone number provided is invalid")
+    return os.path.join("uploads", "recipe", filename)
 
 
 class UserManager(BaseUserManager):
@@ -64,6 +70,8 @@ class Recipe(models.Model):
     time_minutes = models.PositiveIntegerField()
     link = models.CharField(max_length=255, blank=True)
 
+    image = models.ImageField(null=True, upload_to=recipe_image_file_path)
+
     tags = models.ManyToManyField(to="Tag")
     ingredients = models.ManyToManyField(to="Ingredient")
 
@@ -85,6 +93,7 @@ class Tag(models.Model):
 
 class Ingredient(models.Model):
     """Ingredients for a recipe"""
+
     name = models.CharField(max_length=255)
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL, related_name="ingredients", on_delete=models.CASCADE

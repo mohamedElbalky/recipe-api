@@ -3,3 +3,4 @@ djangorestframework==3.14
 #psycopg2>=2.9.7,<2.10  # activate in production
 django-dotenv>1.4.1,<1.5
 drf-yasg==1.21.7
+pillow==10.1.0

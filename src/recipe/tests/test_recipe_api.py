@@ -1,5 +1,10 @@
 from decimal import Decimal
 
+import tempfile
+import os
+
+from PIL import Image
+
 from rest_framework.test import APIClient
 from rest_framework import status
 
@@ -17,14 +22,15 @@ from recipe.serializers import (
 
 
 RECIPES_URL = reverse("recipe:recipe-list")
-# CREATE_RECIPE_URL = reverse("recipe:recipe-create")
-# UPDATE_RECIPE_URL = reverse("recipe:update")
 
 
 def detail_url(recipe_id):
     """Create and return a recipe detail url"""
     return reverse("recipe:recipe-detail", args=[recipe_id])
 
+def image_upload_url(recipe_id):
+    """Create and return an image detail url"""
+    return reverse('recipe:recipe-upload-image', args=[recipe_id])
 
 def create_recipe(user, **params):
     """Create and return a simple recipe"""
@@ -423,7 +429,6 @@ class PrivateRecipeAPITest(TestCase):
         """test add ingredient to recipe, this ingredient created by another auth user"""
 
         another_user = create_user(email="otheruser@example.com", password="pass123@")
-
         another_user_ingredient = Ingredient.objects.create(
             user=another_user, name="another user ing"
         )
@@ -434,14 +439,57 @@ class PrivateRecipeAPITest(TestCase):
         }
         
         url = detail_url(auth_user_recipe.id)
-
         res = self.client.patch(url, payload, format="json")
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         
         ing = auth_user_recipe.ingredients.first()
-        
+
         self.assertEqual(ing, another_user_ingredient)
         
         # self.assertIn(another_user_ingredient, auth_user_recipe.ingredients.all())
         
+
+class ImageUploadTests(TestCase):
+    """test upload recipe image"""
+
+    def setUp(self):
+        """excute before every testcase"""
+        self.client = APIClient()
+        self.user = create_user(email="test@example.xyz", password="test123")
+        
+        self.client.force_authenticate(self.user)
+        self.recipe = create_recipe(user=self.user)
+
+    def tearDown(self):
+        """excute after every testcase"""
+        self.recipe.image.delete()
+        
+    def test_upload_an_image(self):
+        """Test upload an image to a recipe"""
+        url = image_upload_url(self.recipe.id)
+
+        with tempfile.NamedTemporaryFile(suffix=".jpg") as image_file:
+            img = Image.new('RGB', (10, 10))
+            img.save(image_file, format='JPEG')
+            image_file.seek(0)
+            payload = {
+                'image': image_file
+            }
+            res = self.client.post(url, payload, format="multipart")
+
+        self.recipe.refresh_from_db()
+
+        self.assertEqual(res.status_code, status.HTTP_200_OK)
+        self.assertIn("image", res.data)
+        print(self.recipe.image.url)
+        # self.assertTrue(os.path.exists(self.recipe.image.url))
+            
+    def test_upload_image_bad_request(self):
+        """Test uploading invalid image"""
+        url = image_upload_url(self.recipe.id)
+        payload = {
+            "image": "nothing"
+        }
+        res = self.client.post(url, payload, format="multipart")
+        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)

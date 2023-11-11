@@ -1,4 +1,3 @@
-from django.http import Http404
 from django.shortcuts import get_object_or_404
 
 from rest_framework import viewsets, mixins, status
@@ -13,12 +12,33 @@ from rest_framework.decorators import (
 
 from rest_framework.response import Response
 
-from drf_spectacular.utils import extend_schema
+from drf_spectacular.utils import (
+    extend_schema,
+    extend_schema_view,
+    OpenApiParameter,
+    OpenApiTypes,
+)
 
 from core.models import Recipe, Tag, Ingredient
 from . import serializers
 
 
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "tags",
+                OpenApiTypes.STR,
+                description="comma separated list of tags ids to filter",
+            ),
+            OpenApiParameter(
+                "ingredients",
+                OpenApiTypes.STR,
+                description="comma separated list of ingredients ids to filter",
+            ),
+        ],
+    )
+)
 class RecipeViewSet(viewsets.ModelViewSet):
     """View for manage recipe api"""
 
@@ -27,9 +47,26 @@ class RecipeViewSet(viewsets.ModelViewSet):
     permission_classes = [IsAuthenticated]
     authentication_classes = [TokenAuthentication]
 
+    def _params_to_ints(self, qs):
+        """convert a list of strings to integers"""
+        return [int(str_id) for str_id in qs.split(",")]
+
     def get_queryset(self):
         """Retrive recipes for authenticated user"""
-        return self.queryset.filter(user=self.request.user).order_by("-id")
+        # return self.queryset.filter(user=self.request.user).order_by("-id")
+
+        tags = self.request.query_params.get("tags")
+        ingredients = self.request.query_params.get("ingredients")
+        queryset = self.queryset
+
+        if tags:
+            tags_ids = self._params_to_ints(tags)
+            queryset = queryset.filter(tags__id__in=tags_ids)
+        if ingredients:
+            ingredients_ids = self._params_to_ints(ingredients)
+            queryset = queryset.filter(ingredients__id__in=ingredients_ids)
+
+        return queryset.filter(user=self.request.user).order_by("-id").distinct()
 
     def get_serializer_class(self):
         """return a serializer class request.
@@ -57,22 +94,116 @@ class RecipeViewSet(viewsets.ModelViewSet):
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
-@extend_schema(request=serializers.RecipeImageSerializer, responses=None)
-@authentication_classes([TokenAuthentication])
-@permission_classes([IsAuthenticated])
-@api_view(["POST"])
-def recipe_image_view(request, recipe_id):
-    """upload a recipe image view"""
-    recipe = get_object_or_404(Recipe, id=recipe_id)
-    if request.method == "POST":
-        ser = serializers.RecipeImageSerializer(recipe, request.data)
-        if ser.is_valid():
-            ser.save()
-            return Response(ser.data, status=status.HTTP_200_OK)
-        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "assigned_only",
+                OpenApiTypes.INT,
+                enum=[0, 1],
+                description="Filter by items assigned to recipes.",
+            )
+        ]
+    )
+)
+class TagViewSet(
+    mixins.UpdateModelMixin,
+    mixins.DestroyModelMixin,
+    mixins.RetrieveModelMixin,
+    mixins.ListModelMixin,
+    mixins.CreateModelMixin,
+    viewsets.GenericViewSet,
+):
+    """view for manage tag api"""
+
+    queryset = Tag.objects.all()
+    serializer_class = serializers.TagSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        queryset = self.queryset.filter(user=self.request.user)
+        assigned_only = bool(int(self.request.query_params.get("assigned_only")))
+        if assigned_only:
+            queryset = queryset.filter(recipe__isnull=False)
+        queryset = queryset.order_by("-name").distinct()
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
 
 
-@extend_schema(request=serializers.RecipeDetailSerializer, responses=None)
+@extend_schema_view(
+    list=extend_schema(
+        parameters=[
+            OpenApiParameter(
+                "assigned_only",
+                OpenApiTypes.INT,
+                enum=[0, 1],
+                description="Filter by items assigned to recipes.",
+            )
+        ]
+    )
+)
+class IngredientViewSet(viewsets.ModelViewSet):
+    """view for manage ingredient api"""
+
+    queryset = Ingredient.objects.all()
+    serializer_class = serializers.IngredientSerializer
+    authentication_classes = [TokenAuthentication]
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        """filter queryset to authenticate user"""
+        # qs = self.queryset.filter(user=self.request.user).order_by("-name")
+        assigned_only = bool(int(self.request.query_params.get("assigned_only", 0)))
+        queryset = self.queryset.filter(user=self.request.user)
+        if assigned_only:
+            queryset = queryset.filter(recipe__isnull=False)
+        queryset = queryset.order_by("-name").distinct()
+        return queryset
+
+    def perform_create(self, serializer):
+        serializer.save(user=self.request.user)
+
+
+# -------------------------- FBV ---------------------------------------
+# ----------------start help functions---------------------
+def params_to_ints(qs):
+    """convert string params to integer type"""
+    return [int(str_id) for str_id in qs.split(",")]
+
+
+def get_queryset(request, Klass):
+    """filter queryset to authenticate user"""
+    queryset = Klass.objects.filter(user=request.user)
+    assigned_only = bool(int(request.query_params.get("assigned_only", 0)))
+    if assigned_only:
+        queryset = queryset.filter(recipe__isnull=False)
+    queryset = queryset.order_by("-name").distinct()
+    return queryset
+
+
+# ------------------ end help functions -------------------
+
+
+@extend_schema(
+    request=serializers.RecipeDetailSerializer,
+    responses=None,
+    parameters=[
+        OpenApiParameter(
+            "tags",
+            OpenApiTypes.STR,
+            description="comma separated list of tags ids to filter",
+        ),
+        OpenApiParameter(
+            "ingredients",
+            OpenApiTypes.STR,
+            description="comma separated list of ingredients ids to filter",
+        ),
+    ],
+    methods=["GET"],
+)
 @api_view(["GET", "POST"])
 @permission_classes([IsAuthenticated])
 @authentication_classes([TokenAuthentication])
@@ -80,7 +211,19 @@ def recipe_view(request):
     """A view to list recipes"""
     if request.method == "GET":
         user = request.user
-        recipes = Recipe.objects.filter(user=user).order_by("-id")
+        # recipes = Recipe.objects.filter(user=user).order_by("-id")
+        recipes = Recipe.objects.all()
+        tags = request.query_params.get("tags")
+        ingredients = request.query_params.get("ingredients")
+        if tags:
+            tags_ids = params_to_ints(tags)
+            recipes = recipes.filter(tags__id__in=tags_ids)
+        if ingredients:
+            ingredients_ids = params_to_ints(ingredients)
+            recipes = recipes.filter(ingredients__id__in=ingredients_ids)
+
+        recipes = recipes.filter(user=user).order_by("-id").distinct()
+        # print(recipes)
         ser = serializers.RecipeSerializer(
             recipes, many=True, context={"request": request}
         )
@@ -98,6 +241,21 @@ def recipe_view(request):
     return Response(
         {"error": "In-valid method"}, status=status.HTTP_405_METHOD_NOT_ALLOWED
     )
+
+
+@extend_schema(request=serializers.RecipeImageSerializer, responses=None)
+@authentication_classes([TokenAuthentication])
+@permission_classes([IsAuthenticated])
+@api_view(["POST"])
+def recipe_image_view(request, recipe_id):
+    """upload a recipe image view"""
+    recipe = get_object_or_404(Recipe, id=recipe_id)
+    if request.method == "POST":
+        ser = serializers.RecipeImageSerializer(recipe, request.data)
+        if ser.is_valid():
+            ser.save()
+            return Response(ser.data, status=status.HTTP_200_OK)
+        return Response(ser.errors, status=status.HTTP_400_BAD_REQUEST)
 
 
 @extend_schema(request=serializers.RecipeDetailSerializer, responses=None)
@@ -146,39 +304,29 @@ def recipe_detail_view(request, recipe_id=None):
         return Response(status=status.HTTP_204_NO_CONTENT)
 
 
-class TagViewSet(
-    mixins.UpdateModelMixin,
-    mixins.DestroyModelMixin,
-    mixins.RetrieveModelMixin,
-    mixins.ListModelMixin,
-    mixins.CreateModelMixin,
-    viewsets.GenericViewSet,
-):
-    """view for manage tag api"""
-
-    queryset = Tag.objects.all()
-    serializer_class = serializers.TagSerializer
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        qs = self.queryset.filter(user=self.request.user).order_by("-name")
-        return qs
-
-    # def perform_create(self, serializer):
-    #     serializer.save(user=self.request.user)
-
-
-@extend_schema(request=serializers.TagSerializer, responses=None)
+@extend_schema(
+    request=serializers.TagSerializer,
+    responses=None,
+    methods=["GET"],
+    parameters=[
+        OpenApiParameter(
+            "assigned_only",
+            OpenApiTypes.INT,
+            enum=[0, 1],
+            description="Filter by items assigned to recipes.",
+        )
+    ],
+)
 @api_view(["GET", "POST"])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def tag_view(request):
     """vew for mange tag list api and create new tag api"""
     if request.method == "GET":
-        user = request.user
-        tags = Tag.objects.filter(user=user).order_by("-name")
-        ser = serializers.TagSerializer(tags, many=True, context={"request": request})
+        queryset = get_queryset(request, Tag)
+        ser = serializers.TagSerializer(
+            queryset, many=True, context={"request": request}
+        )
         return Response(ser.data, status=status.HTTP_200_OK)
 
     if request.method == "POST":
@@ -225,32 +373,28 @@ def tag_detail_view(request, tag_id=None):
         return Response(ser.errors, status.HTTP_400_BAD_REQUEST)
 
 
-class IngredientViewSet(viewsets.ModelViewSet):
-    """view for manage ingredient api"""
-
-    queryset = Ingredient.objects.all()
-    serializer_class = serializers.IngredientSerializer
-    authentication_classes = [TokenAuthentication]
-    permission_classes = [IsAuthenticated]
-
-    def get_queryset(self):
-        qs = self.queryset.filter(user=self.request.user).order_by("-name")
-        return qs
-
-    # def perform_create(self, serializer):
-    #     serializer.save(user=self.request.user)
-
-
-@extend_schema(request=serializers.IngredientSerializer, responses=None)
+@extend_schema(
+    request=serializers.IngredientSerializer,
+    responses=None,
+    methods=["GET"],
+    parameters=[
+        OpenApiParameter(
+            "assigned_only",
+            OpenApiTypes.INT,
+            enum=[0, 1],
+            description="Filter by items assigned to recipes.",
+        )
+    ],
+)
 @api_view(["GET", "POST"])
 @authentication_classes([TokenAuthentication])
 @permission_classes([IsAuthenticated])
 def ingredient_view(request):
     """function view for manage ingredient api ==> [list and create]"""
     if request.method == "GET":
-        qs = Ingredient.objects.filter(user=request.user).order_by("-name")
+        queryset = get_queryset(request, Ingredient)
         ser = serializers.IngredientSerializer(
-            qs, many=True, context={"request": request}
+            queryset, many=True, context={"request": request}
         )
         return Response(ser.data, status=status.HTTP_200_OK)
 

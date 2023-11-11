@@ -447,8 +447,56 @@ class PrivateRecipeAPITest(TestCase):
 
         self.assertEqual(ing, another_user_ingredient)
         
-        # self.assertIn(another_user_ingredient, auth_user_recipe.ingredients.all())
+        self.assertIn(another_user_ingredient, auth_user_recipe.ingredients.all())
+    
+    def test_filter_by_tag(self):
+        """test filter recipes by tag"""
+        recipe1 = create_recipe(user=self.user, title="recipe one")
+        recipe2 = create_recipe(user=self.user, title="recipe two")
         
+        tag1 = Tag.objects.create(user=self.user, name="tag one")
+        tag2 = Tag.objects.create(user=self.user, name="tag two")
+        
+        recipe1.tags.add(tag1)
+        recipe2.tags.add(tag2)
+        
+        recipe3 = create_recipe(user=self.user, title="recipe three")
+
+        params = {"tags": f"{tag1.id},{tag2.id}"}
+        res = self.client.get(RECIPES_URL, params)
+
+        ser1 = RecipeSerializer(recipe1)
+        ser2 = RecipeSerializer(recipe2)
+        ser3 = RecipeSerializer(recipe3)
+        
+        self.assertIn(ser1.data, res.data)
+        self.assertIn(ser2.data, res.data)
+        self.assertNotIn(ser3.data, res.data)
+        
+    def test_filter_by_ingredient(self):
+        """test filter recipes by ingredient"""
+        recipe1 = create_recipe(user=self.user, title="recipe one")
+        recipe2 = create_recipe(user=self.user, title="recipe two")
+        
+        ing1 = Ingredient.objects.create(user=self.user, name="ingredient one")
+        ing2 = Ingredient.objects.create(user=self.user, name="ingredient two")
+        
+        recipe1.ingredients.add(ing1)
+        recipe2.ingredients.add(ing2)
+        
+        recipe3 = create_recipe(user=self.user, title="recipe three")
+        
+        params = {"ingredients": f"{ing1.id},{ing2.id}"}
+        res = self.client.get(RECIPES_URL, params)
+        
+        ser1 = RecipeSerializer(recipe1)
+        ser2 = RecipeSerializer(recipe2)
+        ser3 = RecipeSerializer(recipe3)
+        
+        self.assertIn(ser1.data, res.data)
+        self.assertIn(ser2.data, res.data)
+        self.assertNotIn(ser3.data, res.data)
+
 
 class ImageUploadTests(TestCase):
     """test upload recipe image"""
@@ -482,7 +530,8 @@ class ImageUploadTests(TestCase):
 
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         self.assertIn("image", res.data)
-        print(self.recipe.image.url)
+        # print(self.recipe.image.url)
+        # error
         # self.assertTrue(os.path.exists(self.recipe.image.url))
             
     def test_upload_image_bad_request(self):

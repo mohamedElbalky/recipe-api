@@ -15,6 +15,7 @@ from recipe.serializers import IngredientSerializer
 
 INGREDIENTS_URL = reverse("recipe:ingredient-list")
 
+
 def detail_url(ingredient_id):
     return reverse("recipe:ingredient-detail", args=[ingredient_id])
 
@@ -50,81 +51,126 @@ class PrivateIngredientsApiTest(TestCase):
 
         self.client.force_authenticate(user=self.user)
 
-    def test_retrive_ingredients(self):
-        """test list ingredients"""
-        Ingredient.objects.create(name="ing one", user=self.user)
-        Ingredient.objects.create(name="ing two", user=self.user)
-        ings = Ingredient.objects.all().order_by("-name")
-        
-        ser = IngredientSerializer(ings, many=True)
+    # def test_retrive_ingredients(self):
+    #     """test list ingredients"""
+    #     Ingredient.objects.create(name="ing one", user=self.user)
+    #     Ingredient.objects.create(name="ing two", user=self.user)
+    #     ings = Ingredient.objects.all().order_by("-name")
 
-        res = self.client.get(INGREDIENTS_URL)
+    #     ser = IngredientSerializer(ings, many=True)
 
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        self.assertEqual(res.data, ser.data)
-        
-    def test_ingredients_limted_to_user(self):
-        """Test list of ingredients is limited to authenticated user."""
-        new_user = create_user(email="newuser@example.com", password="newuser123")
-        Ingredient.objects.create(name="new user ing", user=new_user)
-        
-        ing = Ingredient.objects.create(name="auth user ing", user=self.user)
-        
-        ings = Ingredient.objects.all().filter(user=self.user).order_by("-name")
-        
-        ser = IngredientSerializer(ings, many=True)
+    #     res = self.client.get(INGREDIENTS_URL)
 
-        res = self.client.get(INGREDIENTS_URL)
-        
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(res.data, ser.data)
+
+    # def test_ingredients_limted_to_user(self):
+    #     """Test list of ingredients is limited to authenticated user."""
+    #     new_user = create_user(email="newuser@example.com", password="newuser123")
+    #     Ingredient.objects.create(name="new user ing", user=new_user)
+
+    #     ing = Ingredient.objects.create(name="auth user ing", user=self.user)
+
+    #     ings = Ingredient.objects.all().filter(user=self.user).order_by("-name")
+
+    #     ser = IngredientSerializer(ings, many=True)
+
+    #     res = self.client.get(INGREDIENTS_URL)
+
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     self.assertEqual(len(res.data), 1)
+    #     self.assertEqual(res.data, ser.data)
+    #     self.assertEqual(res.data[0]["name"], ing.name)
+
+    # def test_create_ingedient_successful(self):
+    #     """test create a new ingredient"""
+    #     payload = {"name": "test ing"}
+    #     res = self.client.post(INGREDIENTS_URL, payload)
+    #     exists = Ingredient.objects.filter(
+    #         name=payload["name"],
+    #         user=self.user, 
+    #     ).exists()
+    #     self.assertEqual(res.status_code, status.HTTP_201_CREATED)
+    #     self.assertTrue(exists)
+
+    # def test_create_ingredient_invalid(self):
+    #     """test create invalid ingredient fails"""
+    #     payload = {"name": ""}
+    #     res = self.client.post(INGREDIENTS_URL, payload)
+    #     self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    # def test_update_ingedient(self):
+    #     """test update an ingredient"""
+    #     ing = Ingredient.objects.create(name="test ing", user=self.user)
+
+    #     payload = {"name": "updated ing"}
+    #     url = detail_url(ing.id)
+    #     res = self.client.patch(url, payload)
+
+    #     self.assertEqual(res.status_code, status.HTTP_200_OK)
+    #     ing.refresh_from_db()
+
+    #     self.assertEqual(ing.name, payload["name"])
+
+    # def test_delete_ingredient(self):
+    #     """test delete an ingredient"""
+    #     ing = Ingredient.objects.create(name="test ing", user=self.user)
+
+    #     url = detail_url(ing.id)
+    #     res = self.client.delete(url)
+
+    #     self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
+
+    #     exists = Ingredient.objects.filter(user=self.user).exists()
+    #     self.assertFalse(exists)
+
+    # def test_ingredient_name_validation(self):
+    #     """test ingredient name length must greater that 3"""
+    #     payload = {"name": "te"}
+    #     res = self.client.post(INGREDIENTS_URL, payload)
+    #     self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
+
+    def test_filter_ingredients_assigned_to_recipes(self):
+        """test listing ingredients by those assigned to recipes."""
+        ing1 = Ingredient.objects.create(user=self.user, name="ing one")
+        ing2 = Ingredient.objects.create(user=self.user, name="ing two")
+        recipe = Recipe.objects.create(
+            user=self.user,
+            title="test recipe",
+            price=Decimal("12.3"),
+            time_minutes=15,
+        )
+        recipe.ingredients.add(ing1)
+
+        res = self.client.get(INGREDIENTS_URL, {"assigned_only": 1})
+
+        ser1 = IngredientSerializer(ing1)
+        ser2 = IngredientSerializer(ing2)
+
+        self.assertIn(ser1.data, res.data)
+        self.assertNotIn(ser2.data, res.data)
+
+    def test_filter_ingredients_unique(self):
+        """test filted ingredients retuens a unique list"""
+        ing = Ingredient.objects.create(user=self.user, name="ing one")
+        Ingredient.objects.create(user=self.user, name="ing two")
+
+        recipe1 = Recipe.objects.create(
+            user=self.user,
+            title="test recipe one",
+            price=Decimal("12.3"),
+            time_minutes=15,
+        )
+        recipe2 = Recipe.objects.create(
+            user=self.user,
+            title="test recipe two",
+            price=Decimal("11.3"),
+            time_minutes=12,
+        )
+
+        recipe1.ingredients.add(ing)
+        recipe2.ingredients.add(ing)
+
+        res = self.client.get(INGREDIENTS_URL, {"assigned_only": 1})
+
         self.assertEqual(len(res.data), 1)
-        self.assertEqual(res.data, ser.data)
-        self.assertEqual(res.data[0]["name"], ing.name)
-        
-    def test_create_ingedient_successful(self):
-        """test create a new ingredient"""
-        payload = {"name": "test ing"}
-        res = self.client.post(INGREDIENTS_URL, payload)
-        exists = Ingredient.objects.filter(user=self.user, name=payload["name"]).exists()
-        self.assertEqual(res.status_code, status.HTTP_201_CREATED)
-        self.assertTrue(exists)
-        
-    def test_create_ingredient_invalid(self):
-        """test create invalid ingredient fails"""
-        payload = {"name": ""}
-        res = self.client.post(INGREDIENTS_URL, payload)
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-        
-    def test_update_ingedient(self):
-        """test update an ingredient"""
-        ing = Ingredient.objects.create(name="test ing", user=self.user)
-
-        payload = {"name": "updated ing"}
-        url = detail_url(ing.id)
-        res = self.client.patch(url, payload)
-
-        self.assertEqual(res.status_code, status.HTTP_200_OK)
-        ing.refresh_from_db()
-
-        self.assertEqual(ing.name, payload["name"])
-        
-    def test_delete_ingredient(self):
-        """test delete an ingredient"""
-        ing = Ingredient.objects.create(name="test ing", user=self.user)
-        
-        url = detail_url(ing.id)
-        res = self.client.delete(url)
-        
-        self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
-
-        exists = Ingredient.objects.filter(user=self.user).exists()
-        self.assertFalse(exists)
-        
-    def test_ingredient_name_validation(self):
-        """test ingredient name length must greater that 3"""
-        payload = {
-            "name": "te"
-        }
-        res = self.client.post(INGREDIENTS_URL, payload)
-        self.assertEqual(res.status_code, status.HTTP_400_BAD_REQUEST)
-

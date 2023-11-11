@@ -1,3 +1,5 @@
+from decimal import Decimal
+
 from django.contrib.auth import get_user_model
 from django.test import TestCase
 from django.urls import reverse
@@ -8,7 +10,6 @@ from rest_framework import status
 from core.models import Tag, Recipe
 
 from recipe.serializers import TagSerializer
-
 
 
 TAGS_URL = reverse("recipe:tag-list")
@@ -98,17 +99,53 @@ class PrivateTagApiTest(TestCase):
         self.assertEqual(res.status_code, status.HTTP_200_OK)
         tag.refresh_from_db()
         self.assertEqual(res.data["name"], tag.name)
-        
+
     def test_tag_delete(self):
         """test delete tag"""
         tag = create_tag(user=self.user)
-        
+
         url = tag_detail_url(tag.id)
         res = self.client.delete(url)
-        
+
         self.assertEqual(res.status_code, status.HTTP_204_NO_CONTENT)
 
         self.assertEqual(Tag.objects.count(), 0)
-        
+
         tags = Tag.objects.filter(user=self.user)
         self.assertFalse(tags.exists())
+
+    def test_filter_tags_assigned_to_recipe(self):
+        """test listing tag by those assigned to recipe"""
+        tag1 = Tag.objects.create(user=self.user, name="tag one")
+        tag2 = Tag.objects.create(user=self.user, name="tag two")
+
+        recipe = Recipe.objects.create(
+            user=self.user, title="test recipe", price=Decimal("11.2"), time_minutes=13
+        )
+        recipe.tags.add(tag1)
+
+        res = self.client.get(TAGS_URL, {"assigned_only": 1})
+
+        ser1 = TagSerializer(tag1)
+        ser2 = TagSerializer(tag2)
+
+        self.assertIn(ser1.data, res.data)
+        self.assertNotIn(ser2.data, res.data)
+
+    def test_filter_tags_unique(self):
+        """test filter tags returns a unique list"""
+        tag1 = Tag.objects.create(user=self.user, name="tag onw")
+        Tag.objects.create(user=self.user, name="tag two")
+
+        recipe1 = Recipe.objects.create(
+            user=self.user, title="test recipe1", price=Decimal("11.2"), time_minutes=13
+        )
+        recipe2 = Recipe.objects.create(
+            user=self.user, title="test recipe2", price=Decimal("11.2"), time_minutes=13
+        )
+        recipe1.tags.add(tag1)
+        recipe2.tags.add(tag1)
+
+        res = self.client.get(TAGS_URL, {"assigned_only": 1})
+
+        self.assertEqual(len(res.data), 1)

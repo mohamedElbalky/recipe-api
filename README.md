@@ -1,4 +1,4 @@
 # Recipe Api App
 
 ## Technologies Used:
-  * python 3.11.2.0
+  * python 3.11.2

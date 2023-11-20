@@ -1,5 +1,4 @@
-# recipe-api
-Recipe API APP
-## Technologies Used:
+# Recipe Api App
 
-  python 11.2.0
+## Technologies Used:
+  * python 3.11.2.0
